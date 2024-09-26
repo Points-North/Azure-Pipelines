@@ -1,0 +1,102 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# build-nuget
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# Designed for .NET Framework NuGet Package Building
+#   to provide similar capabilities similar as .NET Core
+#   and .NET Standard.
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops
+
+parameters:
+  DisplayName: ''
+  SourcePath: ''
+  Releases: 'Release|prd'
+  Debug: 'no'
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $scriptFolder = $PSScriptRoot
+      $sourcePath = "${{ parameters.SourcePath }}"
+      $releases = "${{ parameters.Releases }}"
+      $debug = "${{ parameters.Debug }}"
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+      
+      If ($isDebug) {
+        Write-Host
+        Write-Host "PARAMETERS:"
+        Write-Host "SourcePath: $sourcePath"
+        Write-Host "Releases: $releases"
+        Write-Host
+        Write-Host "FOLDER INFORMATION:"
+        $loc = Get-Location
+        Write-Host "Startup Folder: $loc"
+        Write-Host "Script Folder: $scriptFolder"
+      }
+
+      Function BuildNuGet {
+        param ([string]$project, [string]$rootFolder, [string]$releases)
+
+        Write-Host "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+        Set-Location "$rootFolder\$project"
+        Write-Host "Build NuGet Package: $project"
+        Write-Host
+
+        If ($isDebug) {
+          Write-Host "Root Folder: $rootFolder"
+        }
+
+        Foreach ($prodBits in $releases.Split("|")) {
+          Try {
+            
+            $searchFile = "bin\$prodBits\$project.dll"
+            If ($isDebug) {
+              Write-Host "Searching: $searchFile"
+            }
+
+            If (Test-Path -Path "$searchFile" -PathType leaf) {
+              $dllFile = Get-Item $searchFile
+              Write-Host "Found: $($dllFile.FullName)"
+              $versionInfo = $dllFile.VersionInfo
+              Break
+            }          
+          }
+          Catch [System.Exception] {
+            $versionInfo = $null
+          }
+        }
+
+        If ($versionInfo) {
+          $version = $versionInfo.FileMajorPart.ToString() + "." + $versionInfo.FileMinorPart.ToString() + "." + $versionInfo.FileBuildPart.ToString()
+          if ( $versionInfo.FilePrivatePart.ToString() -ne "0" ) { 
+            $version = $version + "." + $versionInfo.FilePrivatePart.ToString()
+          }
+
+          nuget pack $project.nuspec -Version $version -Prop Configuration=$prodBits
+          Move-Item "$project.$version.nupkg" "bin\$prodBits\" -Force
+          Set-Location "$rootFolder"
+          Write-Host
+        }
+        Else {
+          Set-Location "$rootFolder"
+          Write-Host ":( Unable to find a package to deploy"
+          Exit 1
+        }
+      }
+
+      # Search Subfolders (that may contain Project-specific NuGet Nuspec Definitions)
+      $dirs = Get-ChildItem -Path $sourcePath -Directory -Force -ErrorAction SilentlyContinue
+      Foreach ($dir in $dirs) {
+        If (Test-Path -Path "$sourcePath\$dir\$dir.nuspec") {
+          BuildNuGet $dir $sourcePath $releases
+        }
+      }
+
+      Exit 0
+
+# ~End~

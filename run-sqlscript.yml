@@ -1,0 +1,68 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# run-sqlscript
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops
+
+parameters:
+  DisplayName: 'Run SQL Script'
+  SqlServer: ''      # Optional
+  SqlDatabase: ''    # Optional
+  SqlFile: ''        # Optional
+  SqlUser: ''        # Optional
+  SqlPassword: ''    # Optional
+  Debug: 'no'
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $scriptFolder = $PSScriptRoot
+      $sqlServer = "${{ parameters.SqlServer }}"
+      $sqlDatabase = "${{ parameters.SqlDatabase }}"
+      $sqlFile = "${{ parameters.SqlFile }}"
+      $sqlUser = "${{ parameters.SqlUser }}"
+      $sqlPassword = "${{ parameters.SqlPassword }}"
+      $debug = "${{ parameters.Debug }}"
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+      
+      If ($isDebug) {
+        Write-Host
+        Write-Host "PARAMETERS:"
+        Write-Host "SQL Server: $sqlServer"
+        Write-Host "SQL Database: $sqlDatabase"
+        Write-Host "SQL File: $sqlFile"
+        Write-Host "SQL Username: $sqlUser"
+        $infoSqlPassword = "(None Specified)"
+        If ($sqlPassword.Length -gt 0) {
+          $infoSqlPassword = "(Password Specified)"
+        }
+        Write-Host "SQL Password: $infoSqlPassword"
+        Write-Host
+        Write-Host "FOLDER INFORMATION:"
+        $loc = Get-Location
+        Write-Host "Startup Folder: $loc"
+        Write-Host "Script Folder: $scriptFolder"     
+      }
+
+      Write-Host
+      If ($sqlServer.Length -gt 0 -and $sqlDatabase.Length -gt 0 -and $sqlFile.Length -gt 0) {
+        Write-Host "Updating SQL Server $sqlServer database $sqlDatabase"
+        if ($sqlUser.Length -gt 0 -and $sqlPassword.Length -gt 0) {
+          sqlcmd -S "$sqlServer" -d "$sqlDatabase" -U "$sqlUser" -P "$sqlPassword" -i "$sqlFile"
+        }
+        else {
+          sqlcmd -S "$sqlServer" -d "$sqlDatabase" -E -i "$sqlFile"
+        }
+      }
+      else {
+        Write-Host "Unable to process SQL Script: Missing information"
+      }
+
+      Exit 0
+
+# ~End~

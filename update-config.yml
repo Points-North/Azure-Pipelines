@@ -1,0 +1,85 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# update-config
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops
+
+parameters:
+  DisplayName: 'Update Config'
+  FileWithPath: ''
+  BackupFileExtension: 'original'
+  RestoreBackup: 'no'
+  XPathUpdate: ''
+  NewValue: ''
+  ContinueSilently: 'yes'
+  Debug: 'no'
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $filePath = "${{ parameters.FileWithPath }}"
+      $filePathBackup = $filePath + "." + "${{ parameters.BackupFileExtension }}"
+      $definedBackup = (("${{ parameters.BackupFileExtension }}").Length -gt 0)
+      $restoreBackup = ("${{ parameters.RestoreBackup }}").ToLower()
+      $isRestoreBackup = ($restoreBackup -eq '1' -or $restoreBackup -eq 'yes' -or $restoreBackup -eq 'true')
+      $xpath = '${{ parameters.XPathUpdate }}'
+      $newValue = "${{ parameters.NewValue }}"
+      $debug = ("${{ parameters.Debug }}").ToLower()
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+      $continueSilently = ('${{ parameters.ContinueSilently }}').ToLower()
+      $isContinueSilently = ($continueSilently -eq '1' -or $continueSilently -eq 'yes' -or $continueSilently -eq 'true')
+      
+      If ($isDebug) {
+        Write-Host "PARAMETERS:"
+        Write-Host "FileWithPath: $filePath"
+        Write-Host "BackupFileExtension: $filePathBackup"
+        Write-Host "RestoreBackup: $isRestoreBackup"
+        Write-Host "XPathUpdate: $xpath"
+        Write-Host "NewValue: $newValue"
+        Write-Host
+        Write-Host "FOLDER INFORMATION:"
+        $loc = Get-Location
+        $scriptFolder = $PSScriptRoot
+        Write-Host "Startup Folder: $loc"
+        Write-Host "Script Folder: $scriptFolder"
+      }
+      If ($definedBackup) {
+        $backupExists = (Test-Path $filePathBackup -PathType Leaf)
+        If ($isRestoreBackup -and $backupExists) {
+            Write-Host
+            Write-Host "Restore Original"
+            Copy-Item -Path "$filePathBackup" -Destination "$filePath"
+        }
+        ElseIf (!$backupExists) {
+            Write-Host
+            Write-Host "Backup Original"
+            Copy-Item -Path "$filePath" -Destination "$filePathBackup"
+        }
+      }
+
+      Write-Host      
+      Write-Host "Update Data within $filePath"
+      Try {
+        [xml]$xml = Get-Content -Path "$fileWithPath" -Raw
+        $nodes = $xml.SelectNodes($xpath)
+        foreach ($node in $nodes) {
+          $node.Value = $newValue
+        }
+        $xml.Save($filePath) 
+      }
+      Catch {
+        Write-Host
+        Write-Host "Error encountered trying to update config: $_"
+        If (!isContinueSilently) {
+          Exit 1
+        }
+      }
+
+      Exit 0
+
+# ~End~

@@ -1,0 +1,115 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# publish-dotnet
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops
+
+parameters:
+  DisplayName: 'Publish Dotnet'
+  SourcePath: '.\'
+  TargetPath: ''
+  SourceFileMask: ''
+  SqlServer: ''          # Optional
+  SqlDatabase: ''        # Optional
+  SqlFile: ''            # Optional
+  SqlUser: ''            # Optional
+  SqlPassword: ''        # Optional
+  ExcludeFolders: ''     # Optional, Pipe-Delimited
+  ExcludeFiles: ''       # Optional, Pipe-Delimited
+  RetryAttempts: '3'     # Optional (count) - 1 million is the robocopy default
+  RetryWait: '10'        # Optional (seconds) - 30 seconds is the robocopy default
+  Debug: 'no'            # Optional
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $scriptFolder = $PSScriptRoot
+      $sourcePath = "${{ parameters.SourcePath }}"
+      $targetPath = "${{ parameters.TargetPath }}"
+      $sourceFileMask = "${{ parameters.SourceFileMask }}"
+      $sqlServer = "${{ parameters.SqlServer }}"
+      $sqlDatabase = "${{ parameters.SqlDatabase }}"
+      $sqlFile = "${{ parameters.SqlFile }}"
+      $sqlUser = "${{ parameters.SqlUser }}"
+      $sqlPassword = "${{ parameters.SqlPassword }}"
+      $excludeFolders = "${{ parameters.ExcludeFolders }}"
+      $excludeFiles = "${{ parameters.ExcludeFiles }}"
+      $retryAttempts = "${{ parameters.RetryAttempts }}"
+      $retryWait = "${{ parameters.RetryWait }}"
+      $debug = "${{ parameters.Debug }}"
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+      
+      If ($isDebug) {
+        Write-Host
+        Write-Host "PARAMETERS:"
+        Write-Host "SourcePath: $sourcePath"
+        Write-Host "TargetPath: $targetPath"
+        Write-Host "Source File Mask: $sourceFileMask"
+        Write-Host "SQL Server: $sqlServer"
+        Write-Host "SQL Database: $sqlDatabase"
+        Write-Host "SQL File: $sqlFile"
+        Write-Host "SQL Username: $sqlUser"
+        $infoSqlPassword = "(None Specified)"
+        If ($sqlPassword.Length -gt 0) {
+          $infoSqlPassword = "(Password Specified)"
+        }
+        Write-Host "SQL Password: $infoSqlPassword"
+        Write-Host "Exclude Folders: $excludeFolders"
+        Write-Host "Exclude Files: $excludeFiles"
+        Write-Host "Retry Attempts: $retryAttempts"
+        Write-Host "Retry Wait: $retryWait"
+        Write-Host
+        Write-Host "FOLDER INFORMATION:"
+        $loc = Get-Location
+        Write-Host "Startup Folder: $loc"
+        Write-Host "Script Folder: $scriptFolder"     
+      }
+
+      Write-Host
+      Write-Host "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      Write-Host "[Website Deployment]"
+
+      If (Test-Path $targetPath) {
+        # Create an app_offline.htm file on the target publish location - This takes the service offline (preventing file in use errors)
+        Write-Host
+        Write-Host "Taking existing site offline"
+        New-Item "$targetPath\app_offline.htm" -Force -ItemType "file" -value "<html>Service offline for software update...</html>"
+        Start-Sleep -s 3
+      }
+
+      # Optional
+      If ($sqlServer.Length -gt 0 -and $sqlDatabase.Length -gt 0 -and $sqlFile.Length -gt 0) {
+        Write-Host
+        Write-Host "Updating SQL Server $sqlServer database $sqlDatabase"
+        if ($sqlUser.Length -gt 0 -and $sqlPassword.Length -gt 0) {
+          sqlcmd -S "$sqlServer" -d "$sqlDatabase" -U "$sqlUser" -P "$sqlPassword" -i "$sqlFile"
+        }
+        else {
+          sqlcmd -S "$sqlServer" -d "$sqlDatabase" -E -i "$sqlFile"
+        }
+      }
+
+      $excludeFolders = "logs|" + $excludeFolders
+      $excludeFiles = "$targetPath\app_offline.htm|" + $excludeFiles
+      Write-Host
+      Write-Host "Copying files..."
+      robocopy "$sourcePath" "$targetPath" "$sourceFileMask" /PURGE /S /XF $excludeFiles.Split("|") /XD $excludeFolders.Split("|") /NP /R:$retryAttempts /W:$retryWait
+
+      Write-Host
+      Write-Host "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      Write-Host "[Cleanup]"
+
+      If (Test-Path "$targetPath\app_offline.htm") {
+        Write-Host
+        Write-Host "Bring site online..."
+        Remove-Item "$targetPath\app_offline.htm"
+      }
+
+      Exit 0
+
+# ~End~

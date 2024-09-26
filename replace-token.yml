@@ -1,0 +1,93 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# replace-token
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops
+
+parameters:
+  DisplayName: 'Replace Token'
+  FileWithPath: ''
+  BackupFileExtension: 'original'
+  RestoreBackup: 'no'
+  TokenString: ''
+  TokenValue: ''
+  ContinueSilently: 'yes'
+  Debug: 'no'
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $filePath = "${{ parameters.FileWithPath }}"
+      $filePathBackup = $filePath + "." + "${{ parameters.BackupFileExtension }}"
+      $definedBackup = (("${{ parameters.BackupFileExtension }}").Length -gt 0)
+      $restoreBackup = ("${{ parameters.RestoreBackup }}").ToLower()
+      $isRestoreBackup = ($restoreBackup -eq '1' -or $restoreBackup -eq 'yes' -or $restoreBackup -eq 'true')
+      $tokenStr = '${{ parameters.TokenString }}'
+      $tokenVal = "${{ parameters.TokenValue }}"
+      $debug = ("${{ parameters.Debug }}").ToLower()
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+      $continueSilently = ('${{ parameters.ContinueSilently }}').ToLower()
+      $isContinueSilently = ($continueSilently -eq '1' -or $continueSilently -eq 'yes' -or $continueSilently -eq 'true')
+      
+      If ($isDebug) {
+        Write-Host
+        Write-Host "PARAMETERS:"
+        Write-Host "FileWithPath: $filePath"
+        Write-Host "BackupFileExtension: $filePathBackup"
+        Write-Host "RestoreBackup: $isRestoreBackup"
+        Write-Host "TokenString: $tokenStr"
+        Write-Host "TokenValue: $tokenVal"
+        Write-Host
+        Write-Host "FOLDER INFORMATION:"
+        $loc = Get-Location
+        $scriptFolder = $PSScriptRoot
+        Write-Host "Startup Folder: $loc"
+        Write-Host "Script Folder: $scriptFolder"
+      }
+
+      If ($definedBackup) {
+        $backupExists = (Test-Path $filePathBackup -PathType Leaf)
+        If ($isRestoreBackup -and $backupExists) {
+            Write-Host
+            Write-Host "Restore Original"
+            Copy-Item -Path "$filePathBackup" -Destination "$filePath"
+        }
+        ElseIf (!$backupExists) {
+            Write-Host
+            Write-Host "Backup Original"
+            Copy-Item -Path "$filePath" -Destination "$filePathBackup"
+        }
+      }
+      
+      Write-Host
+      Write-Host "Update Data for $tokenStr within $filePath"
+      Try {
+        $oldContent = Get-Content -Path "$filePath" -Raw
+        $newContent = $oldContent.Replace("$tokenStr","$tokenVal")
+        If ($oldContent -ne $newContent) {
+          Write-Host "Updating File"
+          Set-Content -Path "$filePath" -Value $newContent -Force
+        }
+        If ($isDebug) {
+          Write-Host
+          Write-Host "~~~~~~~~~~~~~~~~~ File Contents (Start) ~~~~~~~~~~~~~~~~~"
+          Get-Content -Path "$filePath" -Raw
+          Write-Host "~~~~~~~~~~~~~~~~~ File Contents (End) ~~~~~~~~~~~~~~~~~"
+        }
+      }
+      Catch {
+        Write-Host
+        Write-Host "Error encountered trying to update token: $_"
+        If (!isContinueSilently) {
+          Exit 1
+        }
+      }
+
+      Exit 0
+
+# ~End~

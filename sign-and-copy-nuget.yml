@@ -1,0 +1,112 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# sign-and-copy-nuget
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops
+
+parameters:
+  DisplayName: ''
+  SourcePath: ''
+  TargetPath: ''
+
+  # Local Certificate Store options
+  CertificateIdentifier: ''
+  CertificateIdType: 'subject'
+  CertificateStore: 'LocalMachine' #CurrentUser
+
+  TimeServer: 'http://timestamp.comodoca.com?td=sha256'
+  Releases: 'Release|prd'
+  Debug: 'no'
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $scriptFolder = $PSScriptRoot
+      $sourcePath = "${{ parameters.SourcePath }}"
+      $targetPath = "${{ parameters.TargetPath }}"
+      $certIdentifier = "${{ parameters.CertificateIdentifier }}"
+      $certIdType = "${{ parameters.CertificateIdType }}"
+      $certStore = "${{ parameters.CertificateStore }}"
+      $timeServer = "${{ parameters.TimeServer }}"
+      $releases = "${{ parameters.Releases }}"
+      $debug = "${{ parameters.Debug }}"
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+      
+      If ($isDebug) {
+        Write-Host
+        Write-Host "PARAMETERS:"
+        Write-Host "SourcePath: $sourcePath"
+        Write-Host "TargetPath: $targetPath"
+        Write-Host "CertificateIdentifier: $certIdentifier"
+        Write-Host "CertificateIdType: $certIdType"
+        Write-Host "CertificateStore: $certStore"
+        Write-Host "TimeServer: $timeServer"
+        Write-Host "Releases: $releases"
+        Write-Host
+        Write-Host "FOLDER INFORMATION:"
+        $loc = Get-Location
+        Write-Host "Startup Folder: $loc"
+        Write-Host "Script Folder: $scriptFolder"
+      }
+
+      Function CopyNuGet {
+        param ([string]$project, [string]$rootFolder, [string]$releases)
+
+        Foreach ($releaseBits in $releases.Split("|")) {
+          Try {
+            $searchFile = $rootFolder + "\" + $project + "\bin\" + $releaseBits + "\*.nupkg"
+            If ($isDebug) {
+              Write-Host "Searching: $searchFile"
+            }
+            $newestPackage = Get-ChildItem "$searchFile" -File -ErrorAction Stop | Sort-Object LastAccessTime -Descending | Select-Object -First 1
+            If ($newestPackage) {
+              If ($isDebug) {
+                Write-Host "Found: $newestPackage"
+              }
+              Break
+            }
+          }
+          Catch [System.Exception] {
+            $newestPackage = $null
+          }
+        }
+
+        If ($newestPackage) {
+          Write-Host "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+          if ($certIdentifier.Length -gt 0) {
+            Write-Host "Signing with local certificate store..."
+            # NuGet (that supports signing) defaults to "CurrentUser" for the store Get-Location
+            If ($certIdType.ToLower() -eq "subject") {
+              nuget sign "$newestPackage" -CertificateStoreLocation $certStore -CertificateSubjectName $certIdentifier -Timestamper $timeServer
+            }
+            Else {
+              nuget sign "$newestPackage" -CertificateStoreLocation $certStore -CertificateFingerprint $certIdentifier -Timestamper $timeServer
+            }
+          }
+
+          Try {
+            Copy-Item "$newestPackage" "$targetPath" -Verbose
+          }
+          Catch {
+            Write-Host
+            Write-Host "!! Issue encountered copying NuGet package: $newestPackage"
+            Write-Host "!! Issue: $_"
+          }
+        }
+      }
+
+      # Search Subfolders (that may contain NuGet Packages)
+      $dirs = Get-ChildItem -Path $sourcePath -Directory -Force -ErrorAction SilentlyContinue
+      Foreach ($dir in $dirs) {
+        CopyNuGet $dir $sourcePath $releases
+      }
+
+      Exit 0
+
+# ~End~

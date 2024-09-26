@@ -1,0 +1,44 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# mssql-query-file
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+parameters:
+  DisplayName: ''
+  SqlServer: ''
+  SqlDatabase: ''
+  SqlFile: ''
+  Debug: 'no'
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $scriptFolder = $PSScriptRoot
+      $sqlServer = "${{ parameters.SqlServer }}"
+      $sqlDatabase = "${{ parameters.SqlDatabase }}"
+      $sqlFile = "${{ parameters.SqlFile }}"
+      $debug = "${{ parameters.Debug }}"
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+      
+      If ($isDebug) {
+        Write-Host
+        Write-Host "PARAMETERS:"
+        Write-Host "SqlServer: $sqlServer"
+        Write-Host "Database: $sqlDatabase"
+        Write-Host "File: $sqlFile"
+        Write-Host
+        Write-Host "FOLDER INFORMATION:"
+        $loc = Get-Location
+        Write-Host "Startup Folder: $loc"
+        Write-Host "Script Folder: $scriptFolder"
+      }
+
+      sqlcmd -S "$sqlServer" -d "$sqlDatabase" -E -i "$sqlFile"
+
+      Exit 0;
+
+# ~End~
