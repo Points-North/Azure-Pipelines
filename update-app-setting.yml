@@ -1,0 +1,52 @@
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# update-app-setting
+# Developed by Hans Dickel
+# Root Repo geekfog/Azure-Pipelines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops
+
+parameters:
+  FilePath: ''
+  Key: ''
+  NewValue: ''
+  Debug: 'no'
+
+steps:
+- task: PowerShell@2
+  displayName: '${{ parameters.DisplayName }}'
+  inputs:
+    targetType: Inline
+    script: |
+      $filePath = "${{ parameters.FilePath }}"
+      $key = "${{ parameters.Key }}"
+      $newValue = "${{ parameters.NewValue }}"
+      $debug = ("${{ parameters.Debug }}").ToLower()
+      $isDebug = ($debug -eq '1' -or $debug -eq 'yes' -or $debug -eq 'true')
+
+      # Load the XML file
+      [xml]$xml = Get-Content $filePath
+
+      # Find the appSettings node
+      $appSettings = $xml.configuration.appSettings
+
+      if ($appSettings) {
+          # Find the key to update
+          $setting = $appSettings.add | Where-Object { $_.key -eq $key }
+
+          if ($setting) {
+              # Update the value
+              $setting.value = $newValue
+              # Save the updated XML back to the file
+              $xml.Save($filePath)
+              Write-Output "Updated key '$key' with new value '$newValue'."
+          } else {
+              Write-Output "Key '$key' not found in the appSettings section."
+          }
+      } else {
+          Write-Output "appSettings section not found in the configuration file."
+      }
+
+    Exit 0
+
+# ~End~

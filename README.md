@@ -38,4 +38,8 @@ While there are no expected contributions, they are welcome via GitHub.
 ## Resources
 [Microsoft Documentation on Pipelines Step Templates](https://docs.microsoft.com/en-us/azure/devops/pipelines/process/templates?view=azure-devops)
 
+## History
+
+Originally done by Hans Dickel under Daikin Applied and then Points North, this has been reimagined with a new common base (geekfog) that can be extended (forked) as desired, to be separately referenced and updated as needed. When changes are made to geekfog, they can be synchronized as desired to those forks. That allows centralized management since there was only one active contributor (geekfog).
+
 \~End~
