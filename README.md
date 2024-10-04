@@ -1,7 +1,7 @@
 # Azure Pipelines
 
 ## Introduction
-<img src="https://github.com/geekfog.png" alt="geekfog" style="zoom:30%; float:right" />This is a public [GitHub contribution](https://github.com/geekfog/Azure-Pipelines) by Hans Dickel to help with Azure DevOps Pipeline Automation. While primarily focused on .NET, it can be extended to beyond.
+<img src="https://github.com/geekfog.png" alt="geekfog" align="right" width="100" height="100" style="zoom:30%; float:right" />This is a public [GitHub contribution](https://github.com/geekfog/Azure-Pipelines) by Hans Dickel to help with Azure DevOps Pipeline Automation. While primarily focused on .NET, it can be extended to beyond.
 
 What initially started as having a collection of Azure DevOps Pipelines Task Groups has changed to Step Templates.  These templates can be referenced directly from the GitHub repository from various pipelines (including Azure Pipelines YAML build files in various Repos) without requiring downloading of utility files into the pipeline.
 
