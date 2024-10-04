@@ -18,7 +18,7 @@ steps:
       if ($drives -ne $null -and $drives.Count -gt 0) {
         foreach ($drive in $drives) {
           $totalFreeSpace=[math]::Round($drive.Free/1GB, 2)
-          Write-Host "Total free space on drive $drive.Name is $totalFreeSpace GB"
+          Write-Host "Total free space on drive $drive is $totalFreeSpace GB"
         }
       } else {
         Write-Host "No drives found"
