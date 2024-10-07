@@ -11,16 +11,17 @@ parameters:
   SourcePath: '.\'
   TargetPath: ''
   SourceFileMask: ''
-  SqlServer: ''          # Optional
-  SqlDatabase: ''        # Optional
-  SqlFile: ''            # Optional
-  SqlUser: ''            # Optional
-  SqlPassword: ''        # Optional
-  ExcludeFolders: ''     # Optional, Pipe-Delimited
-  ExcludeFiles: ''       # Optional, Pipe-Delimited
-  RetryAttempts: '3'     # Optional (count) - 1 million is the robocopy default
-  RetryWait: '10'        # Optional (seconds) - 30 seconds is the robocopy default
-  Debug: 'no'            # Optional
+  KeepExistingFiles: 'no' # Optional
+  SqlServer: ''           # Optional
+  SqlDatabase: ''         # Optional
+  SqlFile: ''             # Optional
+  SqlUser: ''             # Optional
+  SqlPassword: ''         # Optional
+  ExcludeFolders: ''      # Optional, Pipe-Delimited
+  ExcludeFiles: ''        # Optional, Pipe-Delimited
+  RetryAttempts: '3'      # Optional (count) - 1 million is the robocopy default
+  RetryWait: '10'         # Optional (seconds) - 30 seconds is the robocopy default
+  Debug: 'no'             # Optional
 
 steps:
 - task: PowerShell@2
@@ -32,6 +33,7 @@ steps:
       $sourcePath = "${{ parameters.SourcePath }}"
       $targetPath = "${{ parameters.TargetPath }}"
       $sourceFileMask = "${{ parameters.SourceFileMask }}"
+      $keepExistingFiles = "${{ parameters.KeepExistingFiles }}"
       $sqlServer = "${{ parameters.SqlServer }}"
       $sqlDatabase = "${{ parameters.SqlDatabase }}"
       $sqlFile = "${{ parameters.SqlFile }}"
@@ -88,17 +90,22 @@ steps:
         Write-Host "Updating SQL Server $sqlServer database $sqlDatabase"
         if ($sqlUser.Length -gt 0 -and $sqlPassword.Length -gt 0) {
           sqlcmd -S "$sqlServer" -d "$sqlDatabase" -U "$sqlUser" -P "$sqlPassword" -i "$sqlFile"
-        }
-        else {
+        } else {
           sqlcmd -S "$sqlServer" -d "$sqlDatabase" -E -i "$sqlFile"
         }
       }
 
       $excludeFolders = "logs|" + $excludeFolders
       $excludeFiles = "$targetPath\app_offline.htm|" + $excludeFiles
+      $isKeepExistingFiles = ($keepExistingFiles -eq '1' -or $keepExistingFiles -eq 'yes' -or $keepExistingFiles -eq 'true')
+      if ($isKeepExistingFiles) {
+        $purge = ""
+      } else {
+        $purge = "/PURGE"
+      }
       Write-Host
       Write-Host "Copying files..."
-      robocopy "$sourcePath" "$targetPath" "$sourceFileMask" /PURGE /S /XF $excludeFiles.Split("|") /XD $excludeFolders.Split("|") /NP /R:$retryAttempts /W:$retryWait
+      robocopy "$sourcePath" "$targetPath" "$sourceFileMask" $purge /S /XF $excludeFiles.Split("|") /XD $excludeFolders.Split("|") /NP /R:$retryAttempts /W:$retryWait
 
       Write-Host
       Write-Host "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
